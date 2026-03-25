@@ -22,8 +22,14 @@ export function TripCard({ trip, bestScore }: TripCardProps) {
             {trip.name}
           </h3>
           <p className="text-sm text-gray-600 mt-1">
-            {getAirportLabel(trip.origin)} → {getAirportLabel(trip.destination)}
+            {getAirportLabel(trip.origin)} →{" "}
+            {trip.finalDestination ?? getAirportLabel(trip.destination)}
           </p>
+          {trip.gatewayAirports.length > 0 && (
+            <p className="text-xs text-gray-500 mt-0.5">
+              Airports: {[trip.destination, ...trip.gatewayAirports].join(", ")}
+            </p>
+          )}
           <p className="text-xs text-gray-500 mt-1">
             {formatFullDate(trip.dateRangeStart)} — {formatFullDate(trip.dateRangeEnd)}
             {trip.flexibilityDays > 0 && (

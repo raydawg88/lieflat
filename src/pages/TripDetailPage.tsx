@@ -238,6 +238,50 @@ export function TripDetailPage() {
         <SegmentTimeline segments={route.allSegments} />
       </div>
 
+      {/* Ground Transfer */}
+      {route.groundTransfer && (
+        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span className="text-lg">🚆</span> Ground Transfer to{" "}
+            {trip.finalDestination ?? route.groundTransfer.to}
+          </h2>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700">
+                {route.groundTransfer.from} → {route.groundTransfer.to}
+              </span>
+              <span className="text-sm font-medium text-gray-900">
+                ~{formatDuration(route.groundTransfer.durationMinutes)} •{" "}
+                ~{formatUSD(route.groundTransfer.estimatedCostCents)}
+              </span>
+            </div>
+            {route.groundTransfer.provider && (
+              <div className="text-sm text-gray-600">
+                Via {route.groundTransfer.provider}
+              </div>
+            )}
+            {route.groundTransfer.notes && (
+              <p className="text-sm text-gray-600 bg-white/60 rounded-lg p-3 mt-2">
+                {route.groundTransfer.notes}
+              </p>
+            )}
+            {route.groundTransfer.bookingUrl && (
+              <a
+                href={route.groundTransfer.bookingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+              >
+                Book {route.groundTransfer.mode === "train" ? "Train" : "Transport"} Tickets
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Where to Book — per-fare booking links */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="text-sm font-semibold text-gray-900 mb-1">

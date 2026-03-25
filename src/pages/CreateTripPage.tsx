@@ -12,6 +12,8 @@ export function CreateTripPage() {
 
   const [origin, setOrigin] = useState("DFW");
   const [destination, setDestination] = useState("");
+  const [finalDest, setFinalDest] = useState("");
+  const [gateways, setGateways] = useState("");
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
   const [flexibility, setFlexibility] = useState(3);
@@ -78,10 +80,19 @@ export function CreateTripPage() {
     e.preventDefault();
     if (!validate()) return;
 
+    const gwList = gateways
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter((s) => s.length === 3);
+
     const trip = createTrip({
-      name: `${origin} → ${destination}`,
+      name: finalDest
+        ? `${origin} → ${finalDest}`
+        : `${origin} → ${destination}`,
       origin,
       destination,
+      finalDestination: finalDest || undefined,
+      gatewayAirports: gwList,
       dateRangeStart: dateStart,
       dateRangeEnd: dateEnd,
       flexibilityDays: flexibility,
@@ -189,6 +200,42 @@ export function CreateTripPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Final Destination + Gateways */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Where do you actually want to end up? (optional)
+            </label>
+            <input
+              type="text"
+              value={finalDest}
+              onChange={(e) => setFinalDest(e.target.value)}
+              placeholder="e.g. Ghent, Belgium"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              If your final destination isn&apos;t at an airport, we&apos;ll search
+              nearby airports and include ground transport options.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Also search these gateway airports (comma-separated)
+            </label>
+            <input
+              type="text"
+              value={gateways}
+              onChange={(e) => setGateways(e.target.value)}
+              placeholder="e.g. AMS, CDG, LHR"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Fly into any of these airports and take a train/bus to your
+              destination. We&apos;ll include ground transport time and cost.
+            </p>
           </div>
         </div>
 

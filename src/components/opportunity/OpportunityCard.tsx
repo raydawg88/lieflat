@@ -87,6 +87,15 @@ export function OpportunityCard({
           {/* Compact timeline */}
           <div className="mt-3">
             <SegmentTimeline segments={route.allSegments} compact />
+            {route.groundTransfer && (
+              <div className="flex items-center gap-2 mt-2 text-xs text-emerald-700 bg-emerald-50 rounded px-2 py-1">
+                <span>🚆</span>
+                <span>
+                  + {route.groundTransfer.mode} to {route.groundTransfer.to} (~
+                  {Math.round(route.groundTransfer.durationMinutes / 60)}h)
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>

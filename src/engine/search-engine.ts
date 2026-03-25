@@ -6,6 +6,7 @@ import {
   buildMultiFareRoute,
 } from "@/domain/route-builder";
 import type { FareProvider, FareSearchParams } from "@/providers/provider.interface";
+import { getGroundTransfer } from "@/lib/ground-transfers";
 import { addDays, eachDayOfInterval, format } from "date-fns";
 
 /** Known transatlantic hubs for positioning strategies */
@@ -28,86 +29,100 @@ function expandDates(start: string, end: string, flexDays: number): string[] {
   );
 }
 
+/** Get all destination airports for a trip (primary + gateways) */
+function getAllDestinations(trip: Trip): string[] {
+  const dests = new Set<string>([trip.destination]);
+  for (const gw of trip.gatewayAirports) {
+    dests.add(gw);
+  }
+  return Array.from(dests);
+}
+
 /** Build search strategies for a trip */
 function buildStrategies(trip: Trip): SearchStrategy[] {
   const strategies: SearchStrategy[] = [];
   const dates = expandDates(trip.dateRangeStart, trip.dateRangeEnd, trip.flexibilityDays);
   const limit = 20;
+  const allDests = getAllDestinations(trip);
 
-  // Strategy 1: Direct flights in preferred cabin
-  for (const date of dates) {
-    strategies.push({
-      name: `Direct ${trip.origin}→${trip.destination}`,
-      params: [
-        {
-          origin: trip.origin,
-          destination: trip.destination,
-          departureDate: date,
-          cabinClass: trip.preferredCabin,
-          includeNearbyAirports: false,
-          limit,
-        },
-      ],
-    });
-  }
-
-  // Strategy 2: Via transatlantic hubs (positioning + long-haul)
-  if (trip.allowPositioningFlights) {
-    const hubs =
-      trip.preferredConnections.length > 0
-        ? trip.preferredConnections
-        : TRANSATLANTIC_HUBS.slice(0, 3); // Top 3 hubs
-
-    for (const hub of hubs) {
-      for (const date of dates) {
-        strategies.push({
-          name: `Via ${hub}: ${trip.origin}→${hub}→${trip.destination}`,
-          params: [
-            {
-              origin: trip.origin,
-              destination: hub,
-              departureDate: date,
-              cabinClass: CabinClass.Economy,
-              includeNearbyAirports: false,
-              limit: 5,
-            },
-            {
-              origin: hub,
-              destination: trip.destination,
-              departureDate: date,
-              cabinClass: trip.preferredCabin,
-              includeNearbyAirports: false,
-              limit: 5,
-            },
-          ],
-        });
-      }
+  // For each destination airport (primary + gateways)
+  for (const dest of allDests) {
+    // Strategy 1: Direct flights in preferred cabin
+    for (const date of dates) {
+      strategies.push({
+        name: `Direct ${trip.origin}→${dest}`,
+        params: [
+          {
+            origin: trip.origin,
+            destination: dest,
+            departureDate: date,
+            cabinClass: trip.preferredCabin,
+            includeNearbyAirports: false,
+            limit,
+          },
+        ],
+      });
     }
 
-    // Strategy 3: Via European hubs (long-haul + short hop)
-    for (const hub of EUROPEAN_HUBS.slice(0, 2)) {
-      for (const date of dates) {
-        strategies.push({
-          name: `Via ${hub}: ${trip.origin}→${hub}→${trip.destination}`,
-          params: [
-            {
-              origin: trip.origin,
-              destination: hub,
-              departureDate: date,
-              cabinClass: trip.preferredCabin,
-              includeNearbyAirports: false,
-              limit: 5,
-            },
-            {
-              origin: hub,
-              destination: trip.destination,
-              departureDate: date,
-              cabinClass: CabinClass.Economy,
-              includeNearbyAirports: false,
-              limit: 5,
-            },
-          ],
-        });
+    // Strategy 2: Via transatlantic hubs (positioning + long-haul)
+    if (trip.allowPositioningFlights) {
+      const hubs =
+        trip.preferredConnections.length > 0
+          ? trip.preferredConnections
+          : TRANSATLANTIC_HUBS.slice(0, 3);
+
+      for (const hub of hubs) {
+        for (const date of dates) {
+          strategies.push({
+            name: `Via ${hub}: ${trip.origin}→${hub}→${dest}`,
+            params: [
+              {
+                origin: trip.origin,
+                destination: hub,
+                departureDate: date,
+                cabinClass: CabinClass.Economy,
+                includeNearbyAirports: false,
+                limit: 5,
+              },
+              {
+                origin: hub,
+                destination: dest,
+                departureDate: date,
+                cabinClass: trip.preferredCabin,
+                includeNearbyAirports: false,
+                limit: 5,
+              },
+            ],
+          });
+        }
+      }
+
+      // Strategy 3: Via European hubs (long-haul + short hop)
+      for (const hub of EUROPEAN_HUBS.slice(0, 2)) {
+        if (allDests.includes(hub)) continue; // Don't route via a destination
+        for (const date of dates) {
+          strategies.push({
+            name: `Via ${hub}: ${trip.origin}→${hub}→${dest}`,
+            params: [
+              {
+                origin: trip.origin,
+                destination: hub,
+                departureDate: date,
+                cabinClass: trip.preferredCabin,
+                includeNearbyAirports: false,
+                limit: 5,
+              },
+              {
+                origin: hub,
+                destination: dest,
+                departureDate: date,
+                cabinClass: CabinClass.Economy,
+                includeNearbyAirports: false,
+                limit: 5,
+              },
+            ],
+          });
+        }
       }
     }
   }
@@ -122,6 +137,7 @@ export async function searchForTrip(
 ): Promise<TripSearchResult> {
   const startTime = Date.now();
   const strategies = buildStrategies(trip);
+  const allDests = getAllDestinations(trip);
 
   // Collect all fares from all providers across all strategies
   const directFares: Fare[] = [];
@@ -137,27 +153,24 @@ export async function searchForTrip(
           .searchFares(params)
           .then((fares) => {
             for (const fare of fares) {
-              const isDirectToFinalDest = fare.segments.some(
-                (s) => s.destination === trip.destination,
+              const isDirectToAnyDest = fare.segments.some((s) =>
+                allDests.includes(s.destination),
               );
               const isFromOrigin = fare.segments.some(
                 (s) => s.origin === trip.origin,
               );
 
-              if (isFromOrigin && isDirectToFinalDest) {
-                // Direct fare (origin to final destination, possibly with connections)
+              if (isFromOrigin && isDirectToAnyDest) {
                 directFares.push(fare);
-              } else if (isFromOrigin && !isDirectToFinalDest) {
-                // Positioning fare (origin to hub)
+              } else if (isFromOrigin && !isDirectToAnyDest) {
                 positioningFares.push(fare);
-              } else if (!isFromOrigin && isDirectToFinalDest) {
-                // Long-haul fare (hub to destination)
+              } else if (!isFromOrigin && isDirectToAnyDest) {
                 longHaulFares.push(fare);
               }
             }
           })
           .catch(() => {
-            // Provider failed — silently skip, other providers may succeed
+            // Provider failed — silently skip
           });
 
         searchPromises.push(promise);
@@ -191,6 +204,18 @@ export async function searchForTrip(
   // Direct fare routes
   for (const fare of uniqueDirectFares) {
     const route = buildSingleFareRoute(fare);
+    // Attach ground transfer if flying into a gateway (not the "final" destination airport)
+    if (trip.finalDestination) {
+      const lastAirport = route.allSegments[route.allSegments.length - 1]?.destination;
+      if (lastAirport) {
+        const transfer = getGroundTransfer(lastAirport, trip.finalDestination);
+        if (transfer) {
+          route.groundTransfer = transfer;
+          route.totalPriceCents += transfer.estimatedCostCents;
+          route.totalDurationMinutes += transfer.durationMinutes;
+        }
+      }
+    }
     opportunities.push(scoreRoute(route));
   }
 
@@ -199,6 +224,18 @@ export async function searchForTrip(
     for (const lh of uniqueLongHaulFares) {
       const route = buildMultiFareRoute([pos, lh]);
       if (route) {
+        // Attach ground transfer
+        if (trip.finalDestination) {
+          const lastAirport = route.allSegments[route.allSegments.length - 1]?.destination;
+          if (lastAirport) {
+            const transfer = getGroundTransfer(lastAirport, trip.finalDestination);
+            if (transfer) {
+              route.groundTransfer = transfer;
+              route.totalPriceCents += transfer.estimatedCostCents;
+              route.totalDurationMinutes += transfer.durationMinutes;
+            }
+          }
+        }
         opportunities.push(scoreRoute(route));
       }
     }

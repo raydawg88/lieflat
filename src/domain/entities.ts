@@ -71,6 +71,18 @@ export interface Fare {
   };
 }
 
+/** Ground transport from arrival airport to final destination */
+export interface GroundTransfer {
+  mode: "train" | "bus" | "taxi" | "rental_car";
+  from: string;
+  to: string;
+  durationMinutes: number;
+  estimatedCostCents: USDCents;
+  provider?: string;
+  bookingUrl?: string;
+  notes?: string;
+}
+
 /** A complete origin→destination itinerary (may combine multiple fares) */
 export interface Route {
   id: string;
@@ -80,6 +92,8 @@ export interface Route {
   hasLieFlat: boolean;
   totalDurationMinutes: number;
   connectionCount: number;
+  /** Ground transfer from arrival airport to final destination, if applicable */
+  groundTransfer?: GroundTransfer;
 }
 
 /** Scored and ranked route */
@@ -109,7 +123,12 @@ export interface Trip {
   id: string;
   name: string;
   origin: AirportCode;
+  /** Primary destination airport */
   destination: AirportCode;
+  /** Where you actually want to end up (city name, e.g. "Ghent, Belgium") */
+  finalDestination?: string;
+  /** Additional airports you'd fly into and take ground transport from */
+  gatewayAirports: AirportCode[];
   dateRangeStart: ISODate;
   dateRangeEnd: ISODate;
   flexibilityDays: number;
