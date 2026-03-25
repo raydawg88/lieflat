@@ -9,14 +9,14 @@ interface SearchRequest {
   flexibilityDays: number;
 }
 
-const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
+const GEMINI_MODELS = ["gemini-2.0-flash-lite", "gemini-2.0-flash"];
 
 function buildPrompt(req: SearchRequest): string {
   const airports = req.destinationAirports.length > 0
     ? req.destinationAirports.join(", ")
     : req.destination;
 
-  return `Find 4 real lie-flat business class flight deals: ${req.origin} to ${req.destination} (airports: ${airports}), departing ${req.dateRangeStart} to ${req.dateRangeEnd} ±${req.flexibilityDays} days.${req.allowPositioningFlights ? " Include positioning flight combos." : ""}
+  return `Find 3 real lie-flat business class flight deals: ${req.origin} to ${req.destination} (airports: ${airports}), departing ${req.dateRangeStart} to ${req.dateRangeEnd} ±${req.flexibilityDays} days.${req.allowPositioningFlights ? " Include positioning flight combos." : ""}
 
 Return JSON: {"opportunities":[{"headline":"...","totalPriceCents":106800,"fares":[{"segments":[{"airline":"AA","flightNumber":"AA 100","origin":"JFK","destination":"BRU","departureTime":"2026-06-15T17:45:00Z","arrivalTime":"2026-06-16T07:15:00Z","cabinClass":"business","aircraft":"777-300ER","isLieFlat":true}],"totalPriceCents":89000,"sourceName":"AA.com","bookingUrl":"https://www.aa.com/homePage.do","fareClass":"I","bookingInstructions":["Step 1","Step 2"],"pointsCost":null}]}]
 
@@ -27,7 +27,7 @@ Rules:
 - isLieFlat: true only for fully flat seats
 - pointsCost: null for cash, or {"program":"...","points":60000,"cashCopay":5600,"portalUrl":"https://..."}
 - bookingInstructions: 2-4 specific actionable steps
-- Mix: 1 positioning combo, 1 direct nonstop, 1 points deal, 1 budget option`;
+- Mix: 1 positioning combo, 1 direct business, 1 points or budget option`;
 }
 
 export default async (req: Request) => {
