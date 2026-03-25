@@ -229,7 +229,7 @@ export function scoreReliability(route: Route): ScoreFactor {
   else if (hoursOld > 6) score = Math.max(0, score - 20);
   else if (hoursOld > 1) score = Math.max(0, score - 10);
 
-  const sourceLabel = source.replace(/_/g, " ");
+  const sourceLabel = primaryFare?.sourceName ?? source.replace(/_/g, " ");
   const explanation =
     hoursOld < 1
       ? `From ${sourceLabel}, verified just now`

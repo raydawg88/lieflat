@@ -54,13 +54,20 @@ export interface Fare {
   totalPriceCents: USDCents;
   currency: "USD";
   source: FareSource;
-  bookingUrl?: string;
+  /** Human-readable source name, e.g. "Google Flights", "AA.com" */
+  sourceName: string;
+  /** Direct link to book or search for this fare */
+  bookingUrl: string;
   retrievedAt: ISODateTime;
   fareClass?: string;
+  /** Step-by-step instructions to actually get this price */
+  bookingInstructions?: string[];
   pointsCost?: {
     program: string;
     points: number;
     cashCopay: USDCents;
+    /** URL for the loyalty program portal */
+    portalUrl?: string;
   };
 }
 

@@ -31,6 +31,8 @@ function makeFare(overrides: Partial<Fare> = {}): Fare {
     totalPriceCents: 17_800,
     currency: "USD",
     source: FareSource.Mock,
+    sourceName: "Mock",
+    bookingUrl: "https://example.com",
     retrievedAt: new Date().toISOString(),
     ...overrides,
   };

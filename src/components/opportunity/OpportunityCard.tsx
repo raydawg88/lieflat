@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { Opportunity } from "@/domain/entities";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
+import { Badge } from "@/components/ui/Badge";
 import { SegmentTimeline } from "./SegmentTimeline";
 import { formatUSD, formatDuration, formatPoints } from "@/lib/format";
 
@@ -10,6 +11,12 @@ interface OpportunityCardProps {
   rank: number;
 }
 
+/** Get unique source names across all fares in a route */
+function getSourceNames(opportunity: Opportunity): string[] {
+  const names = new Set(opportunity.route.fares.map((f) => f.sourceName));
+  return Array.from(names);
+}
+
 export function OpportunityCard({
   opportunity,
   tripId,
@@ -17,6 +24,10 @@ export function OpportunityCard({
 }: OpportunityCardProps) {
   const { route, score, headline } = opportunity;
   const pointsFare = route.fares.find((f) => f.pointsCost);
+  const sources = getSourceNames(opportunity);
+  const hasInstructions = route.fares.some(
+    (f) => f.bookingInstructions && f.bookingInstructions.length > 0,
+  );
 
   return (
     <Link
@@ -57,6 +68,20 @@ export function OpportunityCard({
                 ? "Nonstop"
                 : `${route.connectionCount} stop${route.connectionCount > 1 ? "s" : ""}`}
             </span>
+          </div>
+
+          {/* Source + Instructions indicator */}
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            {sources.map((name) => (
+              <Badge key={name} variant="default">
+                {name}
+              </Badge>
+            ))}
+            {hasInstructions && (
+              <span className="text-xs text-brand-600 font-medium">
+                Booking guide included
+              </span>
+            )}
           </div>
 
           {/* Compact timeline */}
