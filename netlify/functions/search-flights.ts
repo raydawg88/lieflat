@@ -103,7 +103,7 @@ export default async function handler(req: Request, _context: Context) {
     });
   }
 
-  const apiKey = Netlify.env.get("GEMINI_API_KEY");
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return new Response(
       JSON.stringify({ error: "GEMINI_API_KEY not configured" }),
