@@ -1,0 +1,129 @@
+import { nanoid } from "nanoid";
+
+// ─── Primitives ───
+
+/** IATA airport code, e.g. "DFW", "BRU" */
+export type AirportCode = string;
+
+/** ISO 8601 date string, e.g. "2026-06-15" */
+export type ISODate = string;
+
+/** ISO 8601 datetime string, e.g. "2026-06-15T14:30:00Z" */
+export type ISODateTime = string;
+
+/** USD cents to avoid floating-point issues. $1,234.56 = 123456 */
+export type USDCents = number;
+
+export enum CabinClass {
+  Economy = "economy",
+  PremiumEconomy = "premium_economy",
+  Business = "business",
+  First = "first",
+}
+
+export enum FareSource {
+  Mock = "mock",
+  GoogleFlights = "google_flights",
+  Skiplagged = "skiplagged",
+  PointsProgram = "points_program",
+  MistakeFare = "mistake_fare",
+  DirectAirline = "direct_airline",
+}
+
+// ─── Core Entities ───
+
+/** A single nonstop flight leg */
+export interface Segment {
+  id: string;
+  airline: string;
+  flightNumber: string;
+  origin: AirportCode;
+  destination: AirportCode;
+  departureTime: ISODateTime;
+  arrivalTime: ISODateTime;
+  cabinClass: CabinClass;
+  aircraft?: string;
+  /** Whether this segment has a lie-flat seat */
+  isLieFlat: boolean;
+}
+
+/** A bookable fare for one or more segments */
+export interface Fare {
+  id: string;
+  segments: Segment[];
+  totalPriceCents: USDCents;
+  currency: "USD";
+  source: FareSource;
+  bookingUrl?: string;
+  retrievedAt: ISODateTime;
+  fareClass?: string;
+  pointsCost?: {
+    program: string;
+    points: number;
+    cashCopay: USDCents;
+  };
+}
+
+/** A complete origin→destination itinerary (may combine multiple fares) */
+export interface Route {
+  id: string;
+  fares: Fare[];
+  totalPriceCents: USDCents;
+  allSegments: Segment[];
+  hasLieFlat: boolean;
+  totalDurationMinutes: number;
+  connectionCount: number;
+}
+
+/** Scored and ranked route */
+export interface Opportunity {
+  id: string;
+  route: Route;
+  score: OpportunityScore;
+  headline: string;
+}
+
+export interface OpportunityScore {
+  overall: number;
+  factors: ScoreFactor[];
+}
+
+export interface ScoreFactor {
+  name: string;
+  score: number;
+  weight: number;
+  weightedScore: number;
+  explanation: string;
+}
+
+// ─── User-Facing Entities ───
+
+export interface Trip {
+  id: string;
+  name: string;
+  origin: AirportCode;
+  destination: AirportCode;
+  dateRangeStart: ISODate;
+  dateRangeEnd: ISODate;
+  flexibilityDays: number;
+  preferredCabin: CabinClass;
+  maxBudgetCents?: USDCents;
+  allowPositioningFlights: boolean;
+  preferredConnections: AirportCode[];
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface TripSearchResult {
+  tripId: string;
+  opportunities: Opportunity[];
+  searchedAt: ISODateTime;
+  searchDurationMs: number;
+  faresEvaluated: number;
+}
+
+// ─── Factory ───
+
+export function createId(): string {
+  return nanoid(12);
+}
