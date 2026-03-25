@@ -1,5 +1,3 @@
-import type { Context } from "@netlify/functions";
-
 interface SearchRequest {
   origin: string;
   destination: string;
@@ -11,7 +9,6 @@ interface SearchRequest {
   flexibilityDays: number;
 }
 
-/** Models to try in order — falls back if one is rate-limited */
 const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"];
 
 function buildPrompt(req: SearchRequest): string {
@@ -29,10 +26,12 @@ ${req.allowPositioningFlights ? "Include positioning flights (cheap economy to a
 IMPORTANT RULES:
 - Only return flights that ACTUALLY EXIST on these routes with these airlines
 - Prices should reflect REAL current market rates (not made up)
-- Booking URLs must be REAL, WORKING URLs on Google Flights, airline websites, or booking sites
-- For Google Flights URLs, use this format: https://www.google.com/travel/flights?q=Flights+to+[DEST]+from+[ORIG]+on+[DATE]+one+way
-- For airline sites, link to their homepage booking page (e.g., https://www.aa.com/homePage.do, https://www.united.com, https://www.britishairways.com)
-- For points bookings, link to the loyalty program's booking page
+- Booking URLs must be REAL, WORKING URLs. Use these formats:
+  - Google Flights: https://www.google.com/travel/flights?q=Flights+to+[DEST]+from+[ORIG]+on+[YYYY-MM-DD]+one+way
+  - American Airlines: https://www.aa.com/homePage.do
+  - United Airlines: https://www.united.com
+  - British Airways: https://www.britishairways.com
+  - For points: link to the loyalty program booking page
 - Include step-by-step booking instructions that are SPECIFIC and ACTIONABLE
 - If you include a positioning flight strategy, explain it clearly
 
@@ -83,96 +82,71 @@ Rules for the response:
 - Every bookingInstructions array must have specific, actionable steps`;
 }
 
-export default async function handler(req: Request, _context: Context) {
-  // CORS
+export default async (req: Request) => {
+  const headers = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-      },
-    });
+    return new Response(null, { status: 204, headers });
   }
 
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return new Response(
-      JSON.stringify({ error: "GEMINI_API_KEY not configured" }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return new Response(JSON.stringify({ error: "GEMINI_API_KEY not configured" }), { status: 500, headers });
   }
 
   try {
     const body = (await req.json()) as SearchRequest;
     const prompt = buildPrompt(body);
 
-    // Try each model until one works
     let rawText = "";
     let lastError = "";
 
     for (const model of GEMINI_MODELS) {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-      const geminiResponse = await fetch(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 8192,
-            responseMimeType: "application/json",
-          },
-        }),
-      });
+        const geminiResponse = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 8192,
+              responseMimeType: "application/json",
+            },
+          }),
+        });
 
-      if (geminiResponse.ok) {
-        const geminiData = await geminiResponse.json();
-        rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-        console.log(`Success with model: ${model}`);
-        break;
+        if (geminiResponse.ok) {
+          const geminiData = await geminiResponse.json() as any;
+          rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+          if (rawText) break;
+        }
+
+        lastError = await geminiResponse.text();
+      } catch (e: any) {
+        lastError = e.message;
       }
-
-      // Rate limited or error — try next model
-      lastError = await geminiResponse.text();
-      console.warn(`Model ${model} failed (${geminiResponse.status}), trying next...`);
     }
 
     if (!rawText) {
-      return new Response(
-        JSON.stringify({
-          error: "All Gemini models exhausted",
-          details: lastError,
-        }),
-        {
-          status: 502,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-          },
-        },
-      );
+      return new Response(JSON.stringify({ error: "All Gemini models failed", details: lastError }), { status: 502, headers });
     }
 
-    // Parse the JSON from Gemini's response
     let parsed;
     try {
-      // Try direct parse first
       parsed = JSON.parse(rawText);
     } catch {
-      // Try extracting JSON from markdown code fences
       const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch) {
         parsed = JSON.parse(jsonMatch[1]!.trim());
@@ -183,26 +157,16 @@ export default async function handler(req: Request, _context: Context) {
 
     return new Response(JSON.stringify(parsed), {
       status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "public, max-age=3600", // Cache for 1 hour
-      },
+      headers: { ...headers, "Cache-Control": "public, max-age=3600" },
     });
-  } catch (err) {
-    console.error("Function error:", err);
+  } catch (err: any) {
     return new Response(
-      JSON.stringify({
-        error: "Internal error",
-        details: err instanceof Error ? err.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-      },
+      JSON.stringify({ error: "Internal error", details: err.message ?? "Unknown" }),
+      { status: 500, headers },
     );
   }
-}
+};
+
+export const config = {
+  path: "/.netlify/functions/search-flights",
+};
