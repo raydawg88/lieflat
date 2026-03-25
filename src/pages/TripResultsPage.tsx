@@ -6,7 +6,6 @@ import type { TripSearchResult, Opportunity } from "@/domain/entities";
 import { OpportunityList } from "@/components/opportunity/OpportunityList";
 import { getAirportLabel } from "@/lib/airports";
 import { formatUSD } from "@/lib/format";
-import { CABIN_LABELS } from "@/lib/constants";
 
 type SortBy = "score" | "price" | "duration";
 
@@ -23,7 +22,7 @@ export function TripResultsPage() {
   const [loading, setLoading] = useState(!cachedResult);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortBy>("score");
-  const [cabinFilter, setCabinFilter] = useState<string>("all");
+  const [lieFlatOnly, setLieFlatOnly] = useState(false);
   const [maxPrice, setMaxPrice] = useState<string>("");
 
   useEffect(() => {
@@ -56,11 +55,9 @@ export function TripResultsPage() {
 
     let opps = [...result.opportunities];
 
-    // Filter by cabin
-    if (cabinFilter !== "all") {
-      opps = opps.filter((o) =>
-        o.route.allSegments.some((s) => s.cabinClass === cabinFilter),
-      );
+    // Filter by lie-flat only
+    if (lieFlatOnly) {
+      opps = opps.filter((o) => o.route.hasLieFlat);
     }
 
     // Filter by max price
@@ -86,7 +83,7 @@ export function TripResultsPage() {
     }
 
     return opps;
-  }, [result, sortBy, cabinFilter, maxPrice]);
+  }, [result, sortBy, lieFlatOnly, maxPrice]);
 
   if (!trip) {
     return (
@@ -227,23 +224,15 @@ export function TripResultsPage() {
               </select>
             </div>
 
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-medium text-gray-500">
-                Cabin:
-              </label>
-              <select
-                value={cabinFilter}
-                onChange={(e) => setCabinFilter(e.target.value)}
-                className="text-sm border border-gray-300 rounded px-2 py-1"
-              >
-                <option value="all">All Cabins</option>
-                {Object.entries(CABIN_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={lieFlatOnly}
+                onChange={(e) => setLieFlatOnly(e.target.checked)}
+                className="w-4 h-4 text-brand-600 rounded"
+              />
+              <span className="text-sm text-gray-700">Lie-flat only</span>
+            </label>
 
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium text-gray-500">
@@ -258,10 +247,10 @@ export function TripResultsPage() {
               />
             </div>
 
-            {(cabinFilter !== "all" || maxPrice) && (
+            {(lieFlatOnly || maxPrice) && (
               <button
                 onClick={() => {
-                  setCabinFilter("all");
+                  setLieFlatOnly(false);
                   setMaxPrice("");
                 }}
                 className="text-xs text-brand-600 hover:underline"

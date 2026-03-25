@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import type { Opportunity } from "@/domain/entities";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
 import { Badge } from "@/components/ui/Badge";
-import { SegmentTimeline } from "./SegmentTimeline";
+import { CABIN_LABELS } from "@/lib/constants";
 import { formatUSD, formatDuration, formatPoints } from "@/lib/format";
 
 interface OpportunityCardProps {
@@ -11,10 +11,36 @@ interface OpportunityCardProps {
   rank: number;
 }
 
-/** Get unique source names across all fares in a route */
-function getSourceNames(opportunity: Opportunity): string[] {
-  const names = new Set(opportunity.route.fares.map((f) => f.sourceName));
-  return Array.from(names);
+/** Build route string like "DFW → LHR → BRU" */
+function getRouteString(opportunity: Opportunity): string {
+  const segments = opportunity.route.allSegments;
+  if (segments.length === 0) return "";
+  const codes = [segments[0]!.origin];
+  for (const seg of segments) {
+    codes.push(seg.destination);
+  }
+  // Deduplicate consecutive same codes
+  const unique = codes.filter((c, i) => i === 0 || c !== codes[i - 1]);
+  return unique.join(" → ");
+}
+
+/** Get the primary cabin class for display */
+function getPrimaryCabin(opportunity: Opportunity): { label: string; isLieFlat: boolean } {
+  // Find the longest segment (the one that matters)
+  const segments = opportunity.route.allSegments;
+  let longest = segments[0];
+  let longestDuration = 0;
+  for (const seg of segments) {
+    const dur = new Date(seg.arrivalTime).getTime() - new Date(seg.departureTime).getTime();
+    if (dur > longestDuration) {
+      longestDuration = dur;
+      longest = seg;
+    }
+  }
+  return {
+    label: CABIN_LABELS[longest?.cabinClass ?? ""] ?? "Economy",
+    isLieFlat: longest?.isLieFlat ?? false,
+  };
 }
 
 export function OpportunityCard({
@@ -24,10 +50,9 @@ export function OpportunityCard({
 }: OpportunityCardProps) {
   const { route, score, headline } = opportunity;
   const pointsFare = route.fares.find((f) => f.pointsCost);
-  const sources = getSourceNames(opportunity);
-  const hasInstructions = route.fares.some(
-    (f) => f.bookingInstructions && f.bookingInstructions.length > 0,
-  );
+  const routeStr = getRouteString(opportunity);
+  const cabin = getPrimaryCabin(opportunity);
+  const sources = Array.from(new Set(route.fares.map((f) => f.sourceName)));
 
   return (
     <Link
@@ -43,6 +68,11 @@ export function OpportunityCard({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
+          {/* Route */}
+          <div className="text-xs font-medium text-gray-500 mb-1">
+            {routeStr}
+          </div>
+
           {/* Headline */}
           <h3 className="text-sm font-semibold text-gray-900 group-hover:text-brand-700 transition-colors">
             {headline}
@@ -70,33 +100,31 @@ export function OpportunityCard({
             </span>
           </div>
 
-          {/* Source + Instructions indicator */}
+          {/* Cabin + Source badges */}
           <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <Badge variant="cabin" cabinClass={route.allSegments.find((s) => s.isLieFlat)?.cabinClass}>
+              {cabin.label}
+            </Badge>
+            {cabin.isLieFlat && (
+              <Badge variant="success">Lie-Flat</Badge>
+            )}
             {sources.map((name) => (
               <Badge key={name} variant="default">
                 {name}
               </Badge>
             ))}
-            {hasInstructions && (
-              <span className="text-xs text-brand-600 font-medium">
-                Booking guide included
-              </span>
-            )}
           </div>
 
-          {/* Compact timeline */}
-          <div className="mt-3">
-            <SegmentTimeline segments={route.allSegments} compact />
-            {route.groundTransfer && (
-              <div className="flex items-center gap-2 mt-2 text-xs text-emerald-700 bg-emerald-50 rounded px-2 py-1">
-                <span>🚆</span>
-                <span>
-                  + {route.groundTransfer.mode} to {route.groundTransfer.to} (~
-                  {Math.round(route.groundTransfer.durationMinutes / 60)}h)
-                </span>
-              </div>
-            )}
-          </div>
+          {/* Ground transfer */}
+          {route.groundTransfer && (
+            <div className="flex items-center gap-2 mt-2 text-xs text-emerald-700 bg-emerald-50 rounded px-2 py-1">
+              <span>🚆</span>
+              <span>
+                + {route.groundTransfer.mode} to {route.groundTransfer.to} (~
+                {Math.round(route.groundTransfer.durationMinutes / 60)}h)
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </Link>

@@ -16,17 +16,19 @@ function buildPrompt(req: SearchRequest): string {
     ? req.destinationAirports.join(", ")
     : req.destination;
 
-  return `Find 3 real lie-flat business class flight deals: ${req.origin} to ${req.destination} (airports: ${airports}), departing ${req.dateRangeStart} to ${req.dateRangeEnd} ±${req.flexibilityDays} days.${req.allowPositioningFlights ? " Include positioning flight combos." : ""}
+  return `Find 3 real lie-flat business/first class flight deals: ${req.origin} to ${req.destination} (airports: ${airports}), departing ${req.dateRangeStart} to ${req.dateRangeEnd} ±${req.flexibilityDays} days.${req.allowPositioningFlights ? " Include positioning flight combos (economy to hub + business on long-haul)." : ""}
 
-Return JSON: {"opportunities":[{"headline":"...","totalPriceCents":106800,"fares":[{"segments":[{"airline":"AA","flightNumber":"AA 100","origin":"JFK","destination":"BRU","departureTime":"2026-06-15T17:45:00Z","arrivalTime":"2026-06-16T07:15:00Z","cabinClass":"business","aircraft":"777-300ER","isLieFlat":true}],"totalPriceCents":89000,"sourceName":"AA.com","bookingUrl":"https://www.aa.com/homePage.do","fareClass":"I","bookingInstructions":["Step 1","Step 2"],"pointsCost":null}]}]
+Return JSON: {"opportunities":[{"headline":"DFW → LHR → BRU: Lie-flat on BA 787 for $3,865","totalPriceCents":386500,"fares":[{"segments":[{"airline":"BA","flightNumber":"BA 192","origin":"DFW","destination":"LHR","departureTime":"2026-06-15T17:45:00Z","arrivalTime":"2026-06-16T07:15:00Z","cabinClass":"business","aircraft":"787-9","isLieFlat":true}],"totalPriceCents":386500,"sourceName":"Google Flights","bookingUrl":"https://www.google.com/travel/flights?q=Flights+to+LHR+from+DFW+on+2026-06-15+one+way+business+class","fareClass":"J","bookingInstructions":["Go to Google Flights and search DFW to LHR one-way on June 15","Click the cabin dropdown and select Business class","Look for BA 192 departing at 5:45 PM"],"pointsCost":null}]}]
 
-Rules:
-- Real airlines, real routes, real market prices in USD cents
-- bookingUrl: use https://www.google.com/travel/flights?q=Flights+to+BRU+from+DFW+on+2026-06-15+one+way for Google Flights, or airline homepage
-- cabinClass: economy/premium_economy/business/first
-- isLieFlat: true only for fully flat seats
+CRITICAL RULES:
+- headline MUST start with the route: "DFW → BRU:" or "DFW → JFK → BRU:" then the deal description
+- bookingUrl for Google Flights MUST include "business+class" and "one+way": https://www.google.com/travel/flights?q=Flights+to+[DEST]+from+[ORIG]+on+[YYYY-MM-DD]+one+way+business+class
+- bookingUrl for airlines: link to their booking/search page where user can search business class
+- bookingInstructions MUST tell the user to select Business class and one-way in the booking tool
+- All long-haul segments must be business or first class with isLieFlat:true
+- Positioning segments can be economy (isLieFlat:false)
+- Real airlines, real routes that actually exist, real market prices in USD cents
 - pointsCost: null for cash, or {"program":"...","points":60000,"cashCopay":5600,"portalUrl":"https://..."}
-- bookingInstructions: 2-4 specific actionable steps
 - Mix: 1 positioning combo, 1 direct business, 1 points or budget option`;
 }
 
