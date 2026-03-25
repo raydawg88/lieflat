@@ -9,7 +9,7 @@ interface SearchRequest {
   flexibilityDays: number;
 }
 
-const GEMINI_MODELS = ["gemini-2.0-flash-lite", "gemini-2.0-flash"];
+const GEMINI_MODELS = ["gemini-2.5-flash"];
 
 function buildPrompt(req: SearchRequest): string {
   const airports = req.destinationAirports.length > 0
@@ -74,6 +74,7 @@ export default async (req: Request) => {
             temperature: 0.2,
             maxOutputTokens: 4096,
             responseMimeType: "application/json",
+            thinkingConfig: { thinkingBudget: 0 },
           },
         }),
       });
