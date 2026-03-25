@@ -11,7 +11,8 @@ interface SearchRequest {
   flexibilityDays: number;
 }
 
-const GEMINI_MODEL = "gemini-2.0-flash";
+/** Models to try in order — falls back if one is rate-limited */
+const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"];
 
 function buildPrompt(req: SearchRequest): string {
   const airports = req.destinationAirports.length > 0
@@ -117,28 +118,43 @@ export default async function handler(req: Request, _context: Context) {
     const body = (await req.json()) as SearchRequest;
     const prompt = buildPrompt(body);
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+    // Try each model until one works
+    let rawText = "";
+    let lastError = "";
 
-    const geminiResponse = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 8192,
-          responseMimeType: "application/json",
-        },
-      }),
-    });
+    for (const model of GEMINI_MODELS) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    if (!geminiResponse.ok) {
-      const errText = await geminiResponse.text();
-      console.error("Gemini API error:", errText);
+      const geminiResponse = await fetch(geminiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json",
+          },
+        }),
+      });
+
+      if (geminiResponse.ok) {
+        const geminiData = await geminiResponse.json();
+        rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+        console.log(`Success with model: ${model}`);
+        break;
+      }
+
+      // Rate limited or error — try next model
+      lastError = await geminiResponse.text();
+      console.warn(`Model ${model} failed (${geminiResponse.status}), trying next...`);
+    }
+
+    if (!rawText) {
       return new Response(
         JSON.stringify({
-          error: "Gemini API error",
-          details: errText,
+          error: "All Gemini models exhausted",
+          details: lastError,
         }),
         {
           status: 502,
@@ -149,10 +165,6 @@ export default async function handler(req: Request, _context: Context) {
         },
       );
     }
-
-    const geminiData = await geminiResponse.json();
-    const rawText =
-      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
     // Parse the JSON from Gemini's response
     let parsed;
