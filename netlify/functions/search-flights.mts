@@ -7,29 +7,37 @@ interface SearchRequest {
   preferredCabin: string;
   allowPositioningFlights: boolean;
   flexibilityDays: number;
+  /** Ground transfer info for each gateway airport, passed from the client */
+  gatewayInfo?: { code: string; trainTo: string; trainMinutes: number; trainCostUSD: number }[];
 }
 
 const GEMINI_MODELS = ["gemini-2.5-flash"];
 
 function buildPrompt(req: SearchRequest): string {
-  const airports = req.destinationAirports.length > 0
-    ? req.destinationAirports.join(", ")
-    : req.destination;
+  const gwInfo = req.gatewayInfo ?? [];
+  const gatewayLines = gwInfo.map(
+    (g) => `  - Fly to ${g.code}, then ${g.trainMinutes} min train to ${g.trainTo} (~$${g.trainCostUSD})`
+  ).join("\n");
 
-  return `Find 3 real lie-flat business/first class flight deals: ${req.origin} to ${req.destination} (airports: ${airports}), departing ${req.dateRangeStart} to ${req.dateRangeEnd} ±${req.flexibilityDays} days.${req.allowPositioningFlights ? " Include positioning flight combos (economy to hub + business on long-haul)." : ""}
+  return `I want to get to ${req.destination}. I'm flying from ${req.origin} between ${req.dateRangeStart} and ${req.dateRangeEnd} (±${req.flexibilityDays} days).
 
-Return JSON: {"opportunities":[{"headline":"DFW → LHR → BRU: Lie-flat on BA 787 for $3,865","totalPriceCents":386500,"fares":[{"segments":[{"airline":"BA","flightNumber":"BA 192","origin":"DFW","destination":"LHR","departureTime":"2026-06-15T17:45:00Z","arrivalTime":"2026-06-16T07:15:00Z","cabinClass":"business","aircraft":"787-9","isLieFlat":true}],"totalPriceCents":386500,"sourceName":"Google Flights","bookingUrl":"https://www.google.com/travel/flights?q=Flights+to+LHR+from+DFW+on+2026-06-15+one+way+business+class","fareClass":"J","bookingInstructions":["Go to Google Flights and search DFW to LHR one-way on June 15","Click the cabin dropdown and select Business class","Look for BA 192 departing at 5:45 PM"],"pointsCost":null}]}]
+I don't care which airport I land at — I'll take a train to my destination. Here are my gateway airports and the train to ${req.destination}:
+${gatewayLines || `  - ${req.destinationAirports.join(", ")}`}
 
-CRITICAL RULES:
-- headline MUST start with the route: "DFW → BRU:" or "DFW → JFK → BRU:" then the deal description
-- bookingUrl for Google Flights MUST include "business+class" and "one+way": https://www.google.com/travel/flights?q=Flights+to+[DEST]+from+[ORIG]+on+[YYYY-MM-DD]+one+way+business+class
-- bookingUrl for airlines: link to their booking/search page where user can search business class
-- bookingInstructions MUST tell the user to select Business class and one-way in the booking tool
-- All long-haul segments must be business or first class with isLieFlat:true
-- Positioning segments can be economy (isLieFlat:false)
-- Real airlines, real routes that actually exist, real market prices in USD cents
-- pointsCost: null for cash, or {"program":"...","points":60000,"cashCopay":5600,"portalUrl":"https://..."}
-- Mix: 1 positioning combo, 1 direct business, 1 points or budget option`;
+Find me the cheapest lie-flat business class flight to EACH of these airports. I want to compare: is it cheaper to fly to Brussels, Amsterdam, Paris, or London and take a train?${req.allowPositioningFlights ? " Also consider positioning flights (cheap economy domestic to a US hub, then lie-flat transatlantic booked as a separate ticket)." : ""}
+
+Return 4 opportunities as JSON. Each one should fly to a DIFFERENT gateway airport so I can compare.
+
+JSON format: {"opportunities":[{"headline":"DFW → CDG: Lie-flat on AF A350 for $2,800 + 3.5h train to Ghent","totalPriceCents":280000,"fares":[{"segments":[{"airline":"AF","flightNumber":"AF 639","origin":"DFW","destination":"CDG","departureTime":"2026-06-15T17:00:00Z","arrivalTime":"2026-06-16T09:00:00Z","cabinClass":"business","aircraft":"A350-900","isLieFlat":true}],"totalPriceCents":280000,"sourceName":"Google Flights","bookingUrl":"https://www.google.com/travel/flights?q=Flights+to+CDG+from+DFW+on+2026-06-15+one+way+business+class","fareClass":"J","bookingInstructions":["Search Google Flights: DFW to CDG, one-way, Business class, June 15","Select AF 639 or similar Air France business class","Book directly on airfrance.com for Flying Blue miles"],"pointsCost":null}]}]
+
+RULES:
+- Each opportunity MUST fly to a DIFFERENT airport (one per gateway)
+- headline format: "DFW → [AIRPORT]: [deal description] + [train time] train to ${req.destination}"
+- Real airlines, real routes, real current market prices in USD cents
+- bookingUrl for Google Flights: https://www.google.com/travel/flights?q=Flights+to+[DEST]+from+[ORIG]+on+[YYYY-MM-DD]+one+way+business+class
+- bookingInstructions: 2-3 steps, MUST say "one-way" and "Business class"
+- isLieFlat: true only for fully flat seats on the long-haul
+- pointsCost: null for cash, or {"program":"...","points":60000,"cashCopay":5600,"portalUrl":"https://..."}`;
 }
 
 export default async (req: Request) => {

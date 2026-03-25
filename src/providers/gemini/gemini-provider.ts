@@ -2,7 +2,7 @@ import type { Fare, Segment, Opportunity, Route, Trip, TripSearchResult } from "
 import { FareSource, CabinClass, createId } from "@/domain/entities";
 import { scoreRoute } from "@/domain/scoring";
 import { buildSingleFareRoute, buildMultiFareRoute } from "@/domain/route-builder";
-import { getGroundTransfer } from "@/lib/destinations";
+import { getGroundTransfer, getGatewayAirports } from "@/lib/destinations";
 
 /** Cache key for localStorage */
 function cacheKey(trip: Trip): string {
@@ -200,6 +200,8 @@ export async function searchWithGemini(trip: Trip): Promise<TripSearchResult> {
     return cached;
   }
 
+  const gatewayInfo = getGatewayAirports(trip.destination);
+
   const response = await fetch(getFunctionUrl(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -212,6 +214,7 @@ export async function searchWithGemini(trip: Trip): Promise<TripSearchResult> {
       preferredCabin: trip.preferredCabin,
       allowPositioningFlights: trip.allowPositioningFlights,
       flexibilityDays: trip.flexibilityDays,
+      gatewayInfo: gatewayInfo.length > 0 ? gatewayInfo : undefined,
     }),
   });
 

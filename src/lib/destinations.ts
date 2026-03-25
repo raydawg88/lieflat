@@ -255,3 +255,16 @@ export function getGroundTransfer(
 export function getKnownDestinations(): string[] {
   return Object.values(DESTINATION_DB).map((d) => d.displayName);
 }
+
+/** Get gateway airport info for sending to the search API */
+export function getGatewayAirports(destination: string): { code: string; trainTo: string; trainMinutes: number; trainCostUSD: number }[] {
+  const key = destination.toLowerCase().split(",")[0]?.trim() ?? "";
+  const config = DESTINATION_DB[key];
+  if (!config) return [];
+  return config.airports.map((a) => ({
+    code: a.code,
+    trainTo: a.transfer.to,
+    trainMinutes: a.transfer.durationMinutes,
+    trainCostUSD: Math.round(a.transfer.estimatedCostCents / 100),
+  }));
+}
