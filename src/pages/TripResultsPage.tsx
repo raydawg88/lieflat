@@ -1,8 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useStore } from "@/store/store-context";
-import { searchForTrip } from "@/engine/search-engine";
-import { createDefaultRegistry } from "@/providers";
+import { searchWithGemini } from "@/providers/gemini/gemini-provider";
 import type { TripSearchResult, Opportunity } from "@/domain/entities";
 import { OpportunityList } from "@/components/opportunity/OpportunityList";
 import { getAirportLabel } from "@/lib/airports";
@@ -22,6 +21,7 @@ export function TripResultsPage() {
     cachedResult ?? null,
   );
   const [loading, setLoading] = useState(!cachedResult);
+  const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortBy>("score");
   const [cabinFilter, setCabinFilter] = useState<string>("all");
   const [maxPrice, setMaxPrice] = useState<string>("");
@@ -31,14 +31,20 @@ export function TripResultsPage() {
 
     let cancelled = false;
     setLoading(true);
+    setError(null);
 
-    const registry = createDefaultRegistry();
-    searchForTrip(trip, registry.getAll()).then((res) => {
-      if (cancelled) return;
-      setResult(res);
-      saveResult(res);
-      setLoading(false);
-    });
+    searchWithGemini(trip)
+      .then((res) => {
+        if (cancelled) return;
+        setResult(res);
+        saveResult(res);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Search failed");
+        setLoading(false);
+      });
 
     return () => {
       cancelled = true;
@@ -119,12 +125,45 @@ export function TripResultsPage() {
           <div className="animate-pulse">
             <div className="text-4xl mb-4">🔍</div>
             <h3 className="text-lg font-medium text-gray-900">
-              Searching for opportunities...
+              Searching for real flights...
             </h3>
             <p className="text-gray-500 mt-1">
-              Querying providers and scoring routes
+              AI is researching routes, prices, and booking options
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && (
+        <div className="text-center py-12 bg-red-50 rounded-xl border border-red-200">
+          <div className="text-4xl mb-4">⚠️</div>
+          <h3 className="text-lg font-medium text-red-900">Search failed</h3>
+          <p className="text-red-600 mt-1 text-sm max-w-md mx-auto">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              setLoading(true);
+              if (trip) {
+                // Clear cache and retry
+                const key = `lieflat_gemini_${trip.origin}_${trip.destination}_${trip.dateRangeStart}_${trip.dateRangeEnd}`;
+                localStorage.removeItem(key);
+                searchWithGemini(trip)
+                  .then((res) => {
+                    setResult(res);
+                    saveResult(res);
+                    setLoading(false);
+                  })
+                  .catch((err) => {
+                    setError(err instanceof Error ? err.message : "Search failed");
+                    setLoading(false);
+                  });
+              }
+            }}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+          >
+            Try Again
+          </button>
         </div>
       )}
 
@@ -132,14 +171,45 @@ export function TripResultsPage() {
       {!loading && result && (
         <>
           {/* Meta */}
-          <div className="flex items-center gap-4 text-sm text-gray-500">
-            <span>
-              {result.opportunities.length} opportunities found
-            </span>
-            <span>
-              {result.faresEvaluated} fares evaluated
-            </span>
-            <span>{result.searchDurationMs}ms</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 text-sm text-gray-500">
+              <span>
+                {result.opportunities.length} opportunities found
+              </span>
+              <span>
+                Searched in {(result.searchDurationMs / 1000).toFixed(1)}s
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                // Clear all caches for this trip and re-search
+                if (trip) {
+                  const key = `lieflat_gemini_${trip.origin}_${trip.destination}_${trip.dateRangeStart}_${trip.dateRangeEnd}`;
+                  localStorage.removeItem(key);
+                  const storeKey = `lieflat_results`;
+                  try {
+                    const all = JSON.parse(localStorage.getItem(storeKey) ?? "{}");
+                    delete all[trip.id];
+                    localStorage.setItem(storeKey, JSON.stringify(all));
+                  } catch { /* ignore */ }
+                  setResult(null);
+                  setLoading(true);
+                  searchWithGemini(trip)
+                    .then((res) => {
+                      setResult(res);
+                      saveResult(res);
+                      setLoading(false);
+                    })
+                    .catch((err) => {
+                      setError(err instanceof Error ? err.message : "Search failed");
+                      setLoading(false);
+                    });
+                }
+              }}
+              className="text-xs font-medium text-brand-600 hover:text-brand-700 px-3 py-1.5 border border-brand-200 rounded-lg hover:bg-brand-50 transition-colors"
+            >
+              Refresh Results
+            </button>
           </div>
 
           {/* Filters + Sort */}
