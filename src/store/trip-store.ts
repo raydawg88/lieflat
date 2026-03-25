@@ -3,7 +3,7 @@ import { CabinClass, createId } from "@/domain/entities";
 
 const TRIPS_KEY = "lieflat_trips";
 const RESULTS_KEY = "lieflat_results";
-const SEEDED_KEY = "lieflat_seeded_v2";
+const SEEDED_KEY = "lieflat_seeded_v3";
 
 /** Read all trips from localStorage */
 export function getTrips(): Trip[] {
@@ -79,11 +79,10 @@ export function seedIfNeeded(): Trip | null {
   const now = new Date().toISOString();
   const trip: Trip = {
     id: createId(),
-    name: "Dallas → Ghent",
+    name: "Dallas → Ghent, Belgium",
     origin: "DFW",
-    destination: "BRU",
-    finalDestination: "Ghent, Belgium",
-    gatewayAirports: ["AMS", "CDG", "LHR"],
+    destination: "Ghent",
+    destinationAirports: ["BRU", "AMS", "CDG", "LHR"],
     dateRangeStart: "2026-06-15",
     dateRangeEnd: "2026-06-20",
     flexibilityDays: 3,
@@ -104,8 +103,7 @@ export function createTrip(params: {
   name: string;
   origin: string;
   destination: string;
-  finalDestination?: string;
-  gatewayAirports?: string[];
+  destinationAirports: string[];
   dateRangeStart: string;
   dateRangeEnd: string;
   flexibilityDays?: number;
@@ -119,9 +117,8 @@ export function createTrip(params: {
     id: createId(),
     name: params.name,
     origin: params.origin.toUpperCase(),
-    destination: params.destination.toUpperCase(),
-    finalDestination: params.finalDestination,
-    gatewayAirports: (params.gatewayAirports ?? []).map((a) => a.toUpperCase()),
+    destination: params.destination,
+    destinationAirports: params.destinationAirports.map((a) => a.toUpperCase()),
     dateRangeStart: params.dateRangeStart,
     dateRangeEnd: params.dateRangeEnd,
     flexibilityDays: params.flexibilityDays ?? 3,

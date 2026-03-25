@@ -123,12 +123,10 @@ export interface Trip {
   id: string;
   name: string;
   origin: AirportCode;
-  /** Primary destination airport */
-  destination: AirportCode;
-  /** Where you actually want to end up (city name, e.g. "Ghent, Belgium") */
-  finalDestination?: string;
-  /** Additional airports you'd fly into and take ground transport from */
-  gatewayAirports: AirportCode[];
+  /** Where you want to end up — city name, e.g. "Ghent, Belgium" */
+  destination: string;
+  /** Airports the engine will search (auto-resolved from destination, or user-specified) */
+  destinationAirports: AirportCode[];
   dateRangeStart: ISODate;
   dateRangeEnd: ISODate;
   flexibilityDays: number;

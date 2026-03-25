@@ -104,9 +104,13 @@ export function TripResultsPage() {
           ← Back to Dashboard
         </Link>
         <h1 className="text-2xl font-bold text-gray-900 mt-2">
-          {getAirportLabel(trip.origin)} → {getAirportLabel(trip.destination)}
+          {getAirportLabel(trip.origin)} → {trip.destination}
         </h1>
-        <p className="text-gray-600 mt-1">{trip.name}</p>
+        {trip.destinationAirports.length > 0 && (
+          <p className="text-sm text-gray-500 mt-1">
+            Searching airports: {trip.destinationAirports.join(", ")}
+          </p>
+        )}
       </div>
 
       {/* Loading state */}

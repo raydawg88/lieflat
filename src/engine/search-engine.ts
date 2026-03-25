@@ -6,7 +6,7 @@ import {
   buildMultiFareRoute,
 } from "@/domain/route-builder";
 import type { FareProvider, FareSearchParams } from "@/providers/provider.interface";
-import { getGroundTransfer } from "@/lib/ground-transfers";
+import { getGroundTransfer } from "@/lib/destinations";
 import { addDays, eachDayOfInterval, format } from "date-fns";
 
 /** Known transatlantic hubs for positioning strategies */
@@ -29,13 +29,11 @@ function expandDates(start: string, end: string, flexDays: number): string[] {
   );
 }
 
-/** Get all destination airports for a trip (primary + gateways) */
+/** Get all destination airports for a trip */
 function getAllDestinations(trip: Trip): string[] {
-  const dests = new Set<string>([trip.destination]);
-  for (const gw of trip.gatewayAirports) {
-    dests.add(gw);
-  }
-  return Array.from(dests);
+  return trip.destinationAirports.length > 0
+    ? [...trip.destinationAirports]
+    : [trip.destination]; // Fallback: treat destination string as airport code
 }
 
 /** Build search strategies for a trip */
@@ -204,16 +202,14 @@ export async function searchForTrip(
   // Direct fare routes
   for (const fare of uniqueDirectFares) {
     const route = buildSingleFareRoute(fare);
-    // Attach ground transfer if flying into a gateway (not the "final" destination airport)
-    if (trip.finalDestination) {
-      const lastAirport = route.allSegments[route.allSegments.length - 1]?.destination;
-      if (lastAirport) {
-        const transfer = getGroundTransfer(lastAirport, trip.finalDestination);
-        if (transfer) {
-          route.groundTransfer = transfer;
-          route.totalPriceCents += transfer.estimatedCostCents;
-          route.totalDurationMinutes += transfer.durationMinutes;
-        }
+    // Attach ground transfer from arrival airport to final destination
+    const lastAirport = route.allSegments[route.allSegments.length - 1]?.destination;
+    if (lastAirport) {
+      const transfer = getGroundTransfer(lastAirport, trip.destination);
+      if (transfer) {
+        route.groundTransfer = transfer;
+        route.totalPriceCents += transfer.estimatedCostCents;
+        route.totalDurationMinutes += transfer.durationMinutes;
       }
     }
     opportunities.push(scoreRoute(route));
@@ -224,16 +220,14 @@ export async function searchForTrip(
     for (const lh of uniqueLongHaulFares) {
       const route = buildMultiFareRoute([pos, lh]);
       if (route) {
-        // Attach ground transfer
-        if (trip.finalDestination) {
-          const lastAirport = route.allSegments[route.allSegments.length - 1]?.destination;
-          if (lastAirport) {
-            const transfer = getGroundTransfer(lastAirport, trip.finalDestination);
-            if (transfer) {
-              route.groundTransfer = transfer;
-              route.totalPriceCents += transfer.estimatedCostCents;
-              route.totalDurationMinutes += transfer.durationMinutes;
-            }
+        // Attach ground transfer from arrival airport to final destination
+        const lastAirport = route.allSegments[route.allSegments.length - 1]?.destination;
+        if (lastAirport) {
+          const transfer = getGroundTransfer(lastAirport, trip.destination);
+          if (transfer) {
+            route.groundTransfer = transfer;
+            route.totalPriceCents += transfer.estimatedCostCents;
+            route.totalDurationMinutes += transfer.durationMinutes;
           }
         }
         opportunities.push(scoreRoute(route));

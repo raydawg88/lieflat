@@ -243,7 +243,7 @@ export function TripDetailPage() {
         <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <span className="text-lg">🚆</span> Ground Transfer to{" "}
-            {trip.finalDestination ?? route.groundTransfer.to}
+            {trip.destination}
           </h2>
           <div className="space-y-2">
             <div className="flex items-center justify-between">

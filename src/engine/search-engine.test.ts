@@ -10,7 +10,7 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
     name: "Test Trip",
     origin: "DFW",
     destination: "BRU",
-    gatewayAirports: [],
+    destinationAirports: ["BRU"],
     dateRangeStart: "2026-06-15",
     dateRangeEnd: "2026-06-15",
     flexibilityDays: 0,
